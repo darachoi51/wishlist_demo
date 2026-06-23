@@ -1,0 +1,917 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ショップ ウィッシュリスト — UI改善デモ v3</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, 'Helvetica Neue', Arial, sans-serif;
+    background: #f7f7f8;
+    padding-bottom: 80px;
+  }
+
+  .demo-label {
+    background: #ff249c; color: #fff; font-size: 12px;
+    font-weight: 700; text-align: center; padding: 6px; letter-spacing: 1px;
+  }
+
+  /* ── Tabs ── */
+  .wish_tab { display: flex; background: #fff; border-bottom: 1px solid #f1f1f3; list-style: none; }
+  .wish_tab li { flex: 1; text-align: center; }
+  .wish_tab button {
+    width: 100%; padding: 14px 0; font-size: 15px; color: #9a9ca2;
+    background: none; border: none; border-bottom: 2px solid transparent; cursor: pointer;
+  }
+  .wish_tab li.selected button { color: #3d3f45; font-weight: 700; border-bottom-color: #3d3f45; }
+
+  /* ── Filter bar (normal mode) ── */
+  .wish_shop_filter_bar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 16px; background: #fff; border-bottom: 1px solid #f1f1f3;
+    position: sticky; top: 0; z-index: 10;
+  }
+  .wish_shop_total { font-size: 14px; color: #3d3f45; }
+  .wish_shop_total span { font-weight: 700; color: #ff2424; }
+
+  .filter_right { display: flex; align-items: center; gap: 12px; }
+
+  .shop_sort_trigger {
+    display: flex; align-items: center; gap: 4px;
+    background: none; border: none; cursor: pointer;
+    font-size: 13px; color: #3d3f45; font-weight: 600; padding: 4px 0;
+  }
+  .shop_sort_trigger .chevron { transition: transform .2s; }
+  .shop_sort_trigger.open .chevron { transform: rotate(180deg); }
+
+  .btn_edit {
+    background: none; border: 1px solid #c8c9cf; border-radius: 4px;
+    font-size: 13px; color: #3d3f45; padding: 4px 10px; cursor: pointer;
+    white-space: nowrap;
+  }
+  .btn_edit:active { background: #f7f7f8; }
+
+  /* ── Edit bar (edit mode) ── */
+  .wish_shop_edit_bar {
+    display: none;
+    align-items: center; justify-content: space-between;
+    padding: 12px 16px; background: #fff; border-bottom: 1px solid #f1f1f3;
+    position: sticky; top: 0; z-index: 10;
+  }
+  .wish_shop_edit_bar.show { display: flex; }
+
+  .edit_select_all { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+  .edit_select_label { font-size: 14px; color: #3d3f45; }
+  .edit_select_label span { font-weight: 700; }
+  .edit_select_label #span_selected_count { color: #ff2424; }
+
+  /* custom checkbox */
+  .custom_checkbox {
+    width: 20px; height: 20px; border: 1.5px solid #c8c9cf;
+    border-radius: 50%; background: #fff; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    transition: background .15s, border-color .15s;
+  }
+  .custom_checkbox.checked { background: #ff2424; border-color: #ff2424; }
+  .custom_checkbox svg { opacity: 0; transition: opacity .15s; }
+  .custom_checkbox.checked svg { opacity: 1; }
+  .custom_checkbox::after {
+    content: ''; display: none;
+    width: 5px; height: 9px;
+    border: 2px solid #fff; border-top: none; border-left: none;
+    transform: rotate(45deg) translate(-1px, -1px);
+  }
+  .custom_checkbox.checked::after { display: block; }
+
+  .btn_edit_cancel {
+    background: none; border: none; font-size: 13px;
+    color: #9a9ca2; cursor: pointer; padding: 4px 0;
+  }
+
+  /* ── Shop card ── */
+  .wish_list_cont {
+    background: #fff; margin-bottom: 8px;
+    position: relative; transition: padding-left .2s;
+  }
+  .wish_list_cont.edit-mode { padding-left: 48px; }
+
+  /* 개별 체크박스 (edit mode) */
+  .shop_checkbox_wrap {
+    position: absolute; left: 16px; top: 50%;
+    transform: translateY(-50%);
+    display: none; align-items: center; cursor: pointer;
+  }
+  .edit-mode .shop_checkbox_wrap { display: flex; }
+
+  .wish_list_top {
+    display: flex; align-items: center;
+    padding: 14px 16px 10px; border-bottom: 1px solid #f7f7f8;
+  }
+
+  /* 편집 모드에서는 하트 버튼 비활성화 */
+  .edit-mode .btn_like { pointer-events: none; opacity: .4; }
+
+  .shop_info_link { display: flex; align-items: center; gap: 10px; text-decoration: none; flex: 1; }
+  .shop_thumb {
+    width: 36px; height: 36px; border-radius: 50%;
+    background: #f1f1f3; overflow: hidden; flex-shrink: 0;
+  }
+  .shop_thumb img { width: 100%; height: 100%; object-fit: cover; }
+  .shop_name { font-size: 14px; font-weight: 700; color: #3d3f45; }
+  .shop_reg_date { font-size: 11px; color: #9a9ca2; margin-top: 2px; }
+
+  .btn_like { border: none; background: none; cursor: pointer; display: flex; align-items: center; padding: 0; }
+
+  .wish_prod_list { padding: 12px 16px; overflow-x: auto; }
+  .prod_scroll { display: flex; gap: 10px; width: max-content; }
+  .prod_item { width: 100px; flex-shrink: 0; }
+  .prod_img { width: 100px; height: 100px; border-radius: 6px; overflow: hidden; margin-bottom: 6px; background: #f1f1f3; }
+  .prod_img img { width: 100%; height: 100%; object-fit: cover; }
+  .prod_price { font-size: 13px; font-weight: 700; color: #3d3f45; }
+  .prod_price.sale { color: #ff249c; }
+
+  /* ── Bottom action bar ── */
+  .wish_shop_action_bar {
+    display: none; position: fixed; bottom: 0; left: 0; right: 0;
+    background: #fff; border-top: 1px solid #f1f1f3;
+    padding: 12px 16px; z-index: 20;
+  }
+  .wish_shop_action_bar.show { display: flex; align-items: center; gap: 8px; }
+
+  #btn_edit_cancel {
+    padding: 14px 16px; font-size: 15px; font-weight: 700;
+    background: #fff; color: #9a9ca2;
+    border: 1px solid #c8c9cf; border-radius: 8px;
+    cursor: pointer; white-space: nowrap; flex-shrink: 0;
+    transition: background .15s;
+  }
+  #btn_edit_cancel:active { background: #f7f7f8; }
+
+  .btn_bulk_remove {
+    flex: 1; padding: 14px; font-size: 15px; font-weight: 700;
+    background: linear-gradient(to right, #FF4158, #FF72BA);
+    color: #fff; border: none; border-radius: 8px;
+    cursor: pointer; transition: filter .15s;
+  }
+  .btn_bulk_remove:disabled { background: #c8c9cf; cursor: default; }
+  .btn_bulk_remove:not(:disabled):active { filter: brightness(.9); }
+
+  /* ── Bottom sheet (sort) ── */
+  .sort_sheet_bg {
+    display: none; position: fixed; inset: 0;
+    background: rgba(0,0,0,.45); z-index: 100;
+  }
+  .sort_sheet_bg.show { display: block; }
+
+  .sort_sheet {
+    position: fixed; bottom: -100%; left: 0; right: 0;
+    background: #fff; border-radius: 16px 16px 0 0;
+    z-index: 101; transition: bottom .25s cubic-bezier(.4,0,.2,1);
+  }
+  .sort_sheet.show { bottom: 0; }
+
+  .sort_sheet_header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 18px 16px 14px; border-bottom: 1px solid #f1f1f3;
+  }
+  .sort_sheet_header strong { font-size: 16px; color: #3d3f45; }
+  .sort_close_btn { background: none; border: none; cursor: pointer; padding: 4px; }
+
+  .sort_option_list { list-style: none; padding: 6px 0 28px; }
+  .sort_option_list li label {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 15px 16px; cursor: pointer; font-size: 15px; color: #3d3f45;
+  }
+  .sort_option_list li label:active { background: #f7f7f8; }
+  .sort_check_icon { opacity: 0; flex-shrink: 0; color: #3d3f45; }
+  .sort_option_list li.active .sort_check_icon { opacity: 1; }
+  .sort_option_list li.active label { font-weight: 700; }
+
+  /* ── Confirm dialog ── */
+  .confirm_bg {
+    display: none; position: fixed; inset: 0;
+    background: rgba(0,0,0,.5); z-index: 200; align-items: center; justify-content: center;
+  }
+  .confirm_bg.show { display: flex; }
+  .confirm_box {
+    background: #fff; border-radius: 12px;
+    width: calc(100% - 48px); max-width: 320px; overflow: hidden;
+  }
+  .confirm_body { padding: 28px 20px 20px; text-align: center; }
+  .confirm_body strong { display: block; font-size: 16px; color: #3d3f45; margin-bottom: 8px; }
+  .confirm_body p { font-size: 14px; color: #9a9ca2; line-height: 1.5; }
+  .confirm_footer { display: flex; border-top: 1px solid #f1f1f3; }
+  .confirm_footer button {
+    flex: 1; padding: 16px; font-size: 15px; background: none; border: none; cursor: pointer;
+  }
+  .confirm_footer .btn_cancel { color: #9a9ca2; border-right: 1px solid #f1f1f3; }
+  .confirm_footer .btn_confirm { color: #ff249c; font-weight: 700; }
+
+  /* 카드 해제 애니메이션 */
+  .wish_list_cont.removing {
+    overflow: hidden; transition: max-height .3s ease, opacity .3s ease, margin .3s ease;
+    max-height: 400px; opacity: 1;
+  }
+  .wish_list_cont.removed { max-height: 0; opacity: 0; margin-bottom: 0; }
+</style>
+</head>
+<body>
+
+<div class="demo-label">★ UI改善デモ v3 — 일괄 해제 기능 추가</div>
+
+<!-- Tabs -->
+<ul class="wish_tab">
+  <li><button type="button">商品</button></li>
+  <li><button type="button">ブランド</button></li>
+  <li class="selected"><button type="button">ショップ</button></li>
+</ul>
+
+<!-- Normal mode bar -->
+<div class="wish_shop_filter_bar" id="filter_bar">
+  <strong class="wish_shop_total">
+    ショップ <span id="span_shop_total_count"></span>件
+  </strong>
+  <div class="filter_right">
+    <button type="button" id="btn_sort_trigger" class="shop_sort_trigger" onclick="openSortSheet();">
+      <span id="span_sort_label">最新登録順</span>
+      <svg class="chevron" width="14" height="14" viewBox="0 0 14 14" fill="none">
+        <path d="M3 5l4 4 4-4" stroke="#3d3f45" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </button>
+    <button type="button" class="btn_edit" onclick="enterEditMode();">編集</button>
+  </div>
+</div>
+
+<!-- Edit mode bar -->
+<div class="wish_shop_edit_bar" id="edit_bar">
+  <label class="edit_select_all" onclick="toggleSelectAll();">
+    <div class="custom_checkbox" id="chk_all"></div>
+    <span class="edit_select_label">選択 <span id="span_selected_count">0</span>/<span id="span_total_count">0</span></span>
+  </label>
+
+</div>
+
+<!-- Shop list -->
+<div id="div_shop_wishlist">
+
+  <div class="wish_list_cont" data-reg="20240110" data-id="shop1">
+    <div class="shop_checkbox_wrap" onclick="toggleShopCheck(this);">
+      <div class="custom_checkbox"></div>
+    </div>
+    <div class="wish_list_top">
+      <a class="shop_info_link" href="#">
+        <div class="shop_thumb"><img src="https://placehold.co/36x36/f1f1f3/9a9ca2?text=F" alt=""></div>
+        <div>
+          <div class="shop_name">Fiora</div>
+          <div class="shop_reg_date">登録日: 2024.01.10</div>
+        </div>
+      </a>
+      <button class="btn_like" onclick="removeSingleShop(this);">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="#FF422E"><path d="M12 21.5C11.17 21.5 10.38 21.16 9.82 20.57L2.62 11.43C1.83 10.43 1.58 9.14 1.87 7.9 2.16 6.67 3 5.57 4.17 4.87 5.34 4.17 6.73 3.92 8.07 4.21 9.41 4.5 10.6 5.32 11.38 6.48L12 7.38l.62-.9C13.4 5.32 14.59 4.5 15.93 4.21c1.34-.29 2.73-.04 3.9.66 1.17.7 2.01 1.8 2.3 3.03.29 1.23.04 2.53-.75 3.53L14.18 20.57C13.62 21.16 12.83 21.5 12 21.5z"/></svg>
+      </button>
+    </div>
+    <div class="wish_prod_list"><div class="prod_scroll">
+      <div class="prod_item"><div class="prod_img"><img src="https://placehold.co/100x100/ffe4f0/ff249c?text=💄" alt=""></div><div class="prod_price sale">1,817円</div></div>
+      <div class="prod_item"><div class="prod_img"><img src="https://placehold.co/100x100/fff0e4/ff9c24?text=🌿" alt=""></div><div class="prod_price">190円</div></div>
+      <div class="prod_item"><div class="prod_img"><img src="https://placehold.co/100x100/e4f0ff/249cff?text=🧴" alt=""></div><div class="prod_price sale">192円</div></div>
+      <div class="prod_item"><div class="prod_img"><img src="https://placehold.co/100x100/f0ffe4/9cff24?text=🪥" alt=""></div><div class="prod_price sale">202円</div></div>
+    </div></div>
+  </div>
+
+  <div class="wish_list_cont" data-reg="20240322" data-id="shop2">
+    <div class="shop_checkbox_wrap" onclick="toggleShopCheck(this);">
+      <div class="custom_checkbox"></div>
+    </div>
+    <div class="wish_list_top">
+      <a class="shop_info_link" href="#">
+        <div class="shop_thumb"><img src="https://placehold.co/36x36/e4f0ff/3360FF?text=L" alt=""></div>
+        <div>
+          <div class="shop_name">レンズラボ【コンタクト通販】</div>
+          <div class="shop_reg_date">登録日: 2024.03.22</div>
+        </div>
+      </a>
+      <button class="btn_like" onclick="removeSingleShop(this);">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="#FF422E"><path d="M12 21.5C11.17 21.5 10.38 21.16 9.82 20.57L2.62 11.43C1.83 10.43 1.58 9.14 1.87 7.9 2.16 6.67 3 5.57 4.17 4.87 5.34 4.17 6.73 3.92 8.07 4.21 9.41 4.5 10.6 5.32 11.38 6.48L12 7.38l.62-.9C13.4 5.32 14.59 4.5 15.93 4.21c1.34-.29 2.73-.04 3.9.66 1.17.7 2.01 1.8 2.3 3.03.29 1.23.04 2.53-.75 3.53L14.18 20.57C13.62 21.16 12.83 21.5 12 21.5z"/></svg>
+      </button>
+    </div>
+    <div class="wish_prod_list"><div class="prod_scroll">
+      <div class="prod_item"><div class="prod_img"><img src="https://placehold.co/100x100/e4f8ff/0099cc?text=👁" alt=""></div><div class="prod_price sale">12,900円</div></div>
+      <div class="prod_item"><div class="prod_img"><img src="https://placehold.co/100x100/e4f8ff/0099cc?text=👁" alt=""></div><div class="prod_price">9,980円</div></div>
+      <div class="prod_item"><div class="prod_img"><img src="https://placehold.co/100x100/e4f8ff/0099cc?text=👁" alt=""></div><div class="prod_price">34,800円</div></div>
+    </div></div>
+  </div>
+
+  <div class="wish_list_cont" data-reg="20240705" data-id="shop3">
+    <div class="shop_checkbox_wrap" onclick="toggleShopCheck(this);">
+      <div class="custom_checkbox"></div>
+    </div>
+    <div class="wish_list_top">
+      <a class="shop_info_link" href="#">
+        <div class="shop_thumb"><img src="https://placehold.co/36x36/fff4e4/cc6600?text=H" alt=""></div>
+        <div>
+          <div class="shop_name">ひとみコンタクト【国内発送】</div>
+          <div class="shop_reg_date">登録日: 2024.07.05</div>
+        </div>
+      </a>
+      <button class="btn_like" onclick="removeSingleShop(this);">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="#FF422E"><path d="M12 21.5C11.17 21.5 10.38 21.16 9.82 20.57L2.62 11.43C1.83 10.43 1.58 9.14 1.87 7.9 2.16 6.67 3 5.57 4.17 4.87 5.34 4.17 6.73 3.92 8.07 4.21 9.41 4.5 10.6 5.32 11.38 6.48L12 7.38l.62-.9C13.4 5.32 14.59 4.5 15.93 4.21c1.34-.29 2.73-.04 3.9.66 1.17.7 2.01 1.8 2.3 3.03.29 1.23.04 2.53-.75 3.53L14.18 20.57C13.62 21.16 12.83 21.5 12 21.5z"/></svg>
+      </button>
+    </div>
+    <div class="wish_prod_list"><div class="prod_scroll">
+      <div class="prod_item"><div class="prod_img"><img src="https://placehold.co/100x100/ffeee4/cc3300?text=🔵" alt=""></div><div class="prod_price sale">2,560円</div></div>
+      <div class="prod_item"><div class="prod_img"><img src="https://placehold.co/100x100/ffeee4/cc3300?text=🔵" alt=""></div><div class="prod_price sale">2,376円</div></div>
+      <div class="prod_item"><div class="prod_img"><img src="https://placehold.co/100x100/ffeee4/cc3300?text=🔵" alt=""></div><div class="prod_price sale">3,552円</div></div>
+    </div></div>
+  </div>
+
+  <div class="wish_list_cont" data-reg="20250218" data-id="shop4">
+    <div class="shop_checkbox_wrap" onclick="toggleShopCheck(this);">
+      <div class="custom_checkbox"></div>
+    </div>
+    <div class="wish_list_top">
+      <a class="shop_info_link" href="#">
+        <div class="shop_thumb"><img src="https://placehold.co/36x36/ffe4f4/cc0066?text=T" alt=""></div>
+        <div>
+          <div class="shop_name">theplus beauty</div>
+          <div class="shop_reg_date">登録日: 2025.02.18</div>
+        </div>
+      </a>
+      <button class="btn_like" onclick="removeSingleShop(this);">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="#FF422E"><path d="M12 21.5C11.17 21.5 10.38 21.16 9.82 20.57L2.62 11.43C1.83 10.43 1.58 9.14 1.87 7.9 2.16 6.67 3 5.57 4.17 4.87 5.34 4.17 6.73 3.92 8.07 4.21 9.41 4.5 10.6 5.32 11.38 6.48L12 7.38l.62-.9C13.4 5.32 14.59 4.5 15.93 4.21c1.34-.29 2.73-.04 3.9.66 1.17.7 2.01 1.8 2.3 3.03.29 1.23.04 2.53-.75 3.53L14.18 20.57C13.62 21.16 12.83 21.5 12 21.5z"/></svg>
+      </button>
+    </div>
+    <div class="wish_prod_list"><div class="prod_scroll">
+      <div class="prod_item"><div class="prod_img"><img src="https://placehold.co/100x100/ffe4f0/cc0055?text=💅" alt=""></div><div class="prod_price sale">1,352円</div></div>
+      <div class="prod_item"><div class="prod_img"><img src="https://placehold.co/100x100/ffe4f0/cc0055?text=🧖" alt=""></div><div class="prod_price sale">1,584円</div></div>
+      <div class="prod_item"><div class="prod_img"><img src="https://placehold.co/100x100/ffe4f0/cc0055?text=💋" alt=""></div><div class="prod_price sale">1,272円</div></div>
+    </div></div>
+  </div>
+
+  <div class="wish_list_cont" data-reg="20260622" data-id="shop5">
+    <div class="shop_checkbox_wrap" onclick="toggleShopCheck(this);">
+      <div class="custom_checkbox"></div>
+    </div>
+    <div class="wish_list_top">
+      <a class="shop_info_link" href="#">
+        <div class="shop_thumb"><img src="https://placehold.co/36x36/fff0f3/cc3366?text=B" alt=""></div>
+        <div>
+          <div class="shop_name">bewants_official</div>
+          <div class="shop_reg_date">登録日: 2026.06.22</div>
+        </div>
+      </a>
+      <button class="btn_like" onclick="removeSingleShop(this);">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="#FF422E"><path d="M12 21.5C11.17 21.5 10.38 21.16 9.82 20.57L2.62 11.43C1.83 10.43 1.58 9.14 1.87 7.9 2.16 6.67 3 5.57 4.17 4.87 5.34 4.17 6.73 3.92 8.07 4.21 9.41 4.5 10.6 5.32 11.38 6.48L12 7.38l.62-.9C13.4 5.32 14.59 4.5 15.93 4.21c1.34-.29 2.73-.04 3.9.66 1.17.7 2.01 1.8 2.3 3.03.29 1.23.04 2.53-.75 3.53L14.18 20.57C13.62 21.16 12.83 21.5 12 21.5z"/></svg>
+      </button>
+    </div>
+    <div class="wish_prod_list"><div class="prod_scroll">
+      <div class="prod_item"><div class="prod_img"><img src="https://placehold.co/100x100/fff0f3/cc3366?text=🧴" alt=""></div><div class="prod_price sale">4,830円</div></div>
+      <div class="prod_item"><div class="prod_img"><img src="https://placehold.co/100x100/fff0f3/cc3366?text=🧴" alt=""></div><div class="prod_price sale">2,880円</div></div>
+      <div class="prod_item"><div class="prod_img"><img src="https://placehold.co/100x100/fff0f3/cc3366?text=🧴" alt=""></div><div class="prod_price">3,220円</div></div>
+      <div class="prod_item"><div class="prod_img"><img src="https://placehold.co/100x100/fff0f3/cc3366?text=🧴" alt=""></div><div class="prod_price sale">6,440円</div></div>
+      <div class="prod_item"><div class="prod_img"><img src="https://placehold.co/100x100/fff0f3/cc3366?text=🧴" alt=""></div><div class="prod_price">4,886円</div></div>
+      <div class="prod_item"><div class="prod_img"><img src="https://placehold.co/100x100/fff0f3/cc3366?text=🧴" alt=""></div><div class="prod_price sale">1,925円</div></div>
+    </div></div>
+  </div>
+
+  <div class="wish_list_cont" data-reg="20260621" data-id="shop6">
+    <div class="shop_checkbox_wrap" onclick="toggleShopCheck(this);">
+      <div class="custom_checkbox"></div>
+    </div>
+    <div class="wish_list_top">
+      <a class="shop_info_link" href="#">
+        <div class="shop_thumb"><img src="https://placehold.co/36x36/fde8e8/a00000?text=G" alt=""></div>
+        <div>
+          <div class="shop_name">Glamizer 公式ショップ</div>
+          <div class="shop_reg_date">登録日: 2026.06.21</div>
+        </div>
+      </a>
+      <button class="btn_like" onclick="removeSingleShop(this);">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="#FF422E"><path d="M12 21.5C11.17 21.5 10.38 21.16 9.82 20.57L2.62 11.43C1.83 10.43 1.58 9.14 1.87 7.9 2.16 6.67 3 5.57 4.17 4.87 5.34 4.17 6.73 3.92 8.07 4.21 9.41 4.5 10.6 5.32 11.38 6.48L12 7.38l.62-.9C13.4 5.32 14.59 4.5 15.93 4.21c1.34-.29 2.73-.04 3.9.66 1.17.7 2.01 1.8 2.3 3.03.29 1.23.04 2.53-.75 3.53L14.18 20.57C13.62 21.16 12.83 21.5 12 21.5z"/></svg>
+      </button>
+    </div>
+    <div class="wish_prod_list"><div class="prod_scroll">
+      <div class="prod_item"><div class="prod_img"><img src="https://placehold.co/100x100/fde8e8/a00000?text=🖌" alt=""></div><div class="prod_price sale">1,296円</div></div>
+      <div class="prod_item"><div class="prod_img"><img src="https://placehold.co/100x100/fde8e8/a00000?text=🖌" alt=""></div><div class="prod_price">1,346円</div></div>
+      <div class="prod_item"><div class="prod_img"><img src="https://placehold.co/100x100/fde8e8/a00000?text=🖌" alt=""></div><div class="prod_price sale">1,446円</div></div>
+      <div class="prod_item"><div class="prod_img"><img src="https://placehold.co/100x100/fde8e8/a00000?text=🖌" alt=""></div><div class="prod_price sale">845円</div></div>
+      <div class="prod_item"><div class="prod_img"><img src="https://placehold.co/100x100/fde8e8/a00000?text=🖌" alt=""></div><div class="prod_price">3,631円</div></div>
+      <div class="prod_item"><div class="prod_img"><img src="https://placehold.co/100x100/fde8e8/a00000?text=🖌" alt=""></div><div class="prod_price sale">1,346円</div></div>
+    </div></div>
+  </div>
+
+  <div class="wish_list_cont" data-reg="20260620" data-id="shop7">
+    <div class="shop_checkbox_wrap" onclick="toggleShopCheck(this);">
+      <div class="custom_checkbox"></div>
+    </div>
+    <div class="wish_list_top">
+      <a class="shop_info_link" href="#">
+        <div class="shop_thumb"><img src="https://placehold.co/36x36/fce4ec/e91e8c?text=B" alt=""></div>
+        <div>
+          <div class="shop_name">BANILA CO 公式</div>
+          <div class="shop_reg_date">登録日: 2026.06.20</div>
+        </div>
+      </a>
+      <button class="btn_like" onclick="removeSingleShop(this);">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="#FF422E"><path d="M12 21.5C11.17 21.5 10.38 21.16 9.82 20.57L2.62 11.43C1.83 10.43 1.58 9.14 1.87 7.9 2.16 6.67 3 5.57 4.17 4.87 5.34 4.17 6.73 3.92 8.07 4.21 9.41 4.5 10.6 5.32 11.38 6.48L12 7.38l.62-.9C13.4 5.32 14.59 4.5 15.93 4.21c1.34-.29 2.73-.04 3.9.66 1.17.7 2.01 1.8 2.3 3.03.29 1.23.04 2.53-.75 3.53L14.18 20.57C13.62 21.16 12.83 21.5 12 21.5z"/></svg>
+      </button>
+    </div>
+    <div class="wish_prod_list"><div class="prod_scroll">
+      <div class="prod_item"><div class="prod_img"><img src="https://placehold.co/100x100/fce4ec/e91e8c?text=💄" alt=""></div><div class="prod_price sale">1,850円</div></div>
+      <div class="prod_item"><div class="prod_img"><img src="https://placehold.co/100x100/fce4ec/e91e8c?text=💄" alt=""></div><div class="prod_price sale">1,680円</div></div>
+      <div class="prod_item"><div class="prod_img"><img src="https://placehold.co/100x100/fce4ec/e91e8c?text=💄" alt=""></div><div class="prod_price">2,600円</div></div>
+      <div class="prod_item"><div class="prod_img"><img src="https://placehold.co/100x100/fce4ec/e91e8c?text=💄" alt=""></div><div class="prod_price sale">2,200円</div></div>
+      <div class="prod_item"><div class="prod_img"><img src="https://placehold.co/100x100/fce4ec/e91e8c?text=💄" alt=""></div><div class="prod_price">2,350円</div></div>
+      <div class="prod_item"><div class="prod_img"><img src="https://placehold.co/100x100/fce4ec/e91e8c?text=💄" alt=""></div><div class="prod_price sale">1,850円</div></div>
+    </div></div>
+  </div>
+
+  <div class="wish_list_cont" data-reg="20260619" data-id="shop8">
+    <div class="shop_checkbox_wrap" onclick="toggleShopCheck(this);">
+      <div class="custom_checkbox"></div>
+    </div>
+    <div class="wish_list_top">
+      <a class="shop_info_link" href="#">
+        <div class="shop_thumb"><img src="https://placehold.co/36x36/e8f5e9/1b5e20?text=D" alt=""></div>
+        <div>
+          <div class="shop_name">DSM 公式ストア</div>
+          <div class="shop_reg_date">登録日: 2026.06.19</div>
+        </div>
+      </a>
+      <button class="btn_like" onclick="removeSingleShop(this);">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="#FF422E"><path d="M12 21.5C11.17 21.5 10.38 21.16 9.82 20.57L2.62 11.43C1.83 10.43 1.58 9.14 1.87 7.9 2.16 6.67 3 5.57 4.17 4.87 5.34 4.17 6.73 3.92 8.07 4.21 9.41 4.5 10.6 5.32 11.38 6.48L12 7.38l.62-.9C13.4 5.32 14.59 4.5 15.93 4.21c1.34-.29 2.73-.04 3.9.66 1.17.7 2.01 1.8 2.3 3.03.29 1.23.04 2.53-.75 3.53L14.18 20.57C13.62 21.16 12.83 21.5 12 21.5z"/></svg>
+      </button>
+    </div>
+    <div class="wish_prod_list"><div class="prod_scroll">
+      <div class="prod_item"><div class="prod_img"><img src="https://placehold.co/100x100/e8f5e9/1b5e20?text=🧴" alt=""></div><div class="prod_price sale">3,190円</div></div>
+      <div class="prod_item"><div class="prod_img"><img src="https://placehold.co/100x100/e8f5e9/1b5e20?text=🧴" alt=""></div><div class="prod_price sale">2,480円</div></div>
+      <div class="prod_item"><div class="prod_img"><img src="https://placehold.co/100x100/e8f5e9/1b5e20?text=🧴" alt=""></div><div class="prod_price">4,290円</div></div>
+    </div></div>
+  </div>
+
+  <div class="wish_list_cont" data-reg="20260618" data-id="shop9">
+    <div class="shop_checkbox_wrap" onclick="toggleShopCheck(this);">
+      <div class="custom_checkbox"></div>
+    </div>
+    <div class="wish_list_top">
+      <a class="shop_info_link" href="#">
+        <div class="shop_thumb"><img src="https://placehold.co/36x36/fff9c4/f57f17?text=P" alt=""></div>
+        <div>
+          <div class="shop_name">パパレシピ公式</div>
+          <div class="shop_reg_date">登録日: 2026.06.18</div>
+        </div>
+      </a>
+      <button class="btn_like" onclick="removeSingleShop(this);">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="#FF422E"><path d="M12 21.5C11.17 21.5 10.38 21.16 9.82 20.57L2.62 11.43C1.83 10.43 1.58 9.14 1.87 7.9 2.16 6.67 3 5.57 4.17 4.87 5.34 4.17 6.73 3.92 8.07 4.21 9.41 4.5 10.6 5.32 11.38 6.48L12 7.38l.62-.9C13.4 5.32 14.59 4.5 15.93 4.21c1.34-.29 2.73-.04 3.9.66 1.17.7 2.01 1.8 2.3 3.03.29 1.23.04 2.53-.75 3.53L14.18 20.57C13.62 21.16 12.83 21.5 12 21.5z"/></svg>
+      </button>
+    </div>
+    <div class="wish_prod_list"><div class="prod_scroll">
+      <div class="prod_item"><div class="prod_img"><img src="https://placehold.co/100x100/fff9c4/f57f17?text=🍯" alt=""></div><div class="prod_price sale">1,580円</div></div>
+      <div class="prod_item"><div class="prod_img"><img src="https://placehold.co/100x100/fff9c4/f57f17?text=🍯" alt=""></div><div class="prod_price">2,180円</div></div>
+      <div class="prod_item"><div class="prod_img"><img src="https://placehold.co/100x100/fff9c4/f57f17?text=🍯" alt=""></div><div class="prod_price sale">980円</div></div>
+    </div></div>
+  </div>
+
+  <div class="wish_list_cont" data-reg="20260617" data-id="shop10">
+    <div class="shop_checkbox_wrap" onclick="toggleShopCheck(this);">
+      <div class="custom_checkbox"></div>
+    </div>
+    <div class="wish_list_top">
+      <a class="shop_info_link" href="#">
+        <div class="shop_thumb"><img src="https://placehold.co/36x36/fce4ec/c2185b?text=P" alt=""></div>
+        <div>
+          <div class="shop_name">PAMS B&B公式ショップ</div>
+          <div class="shop_reg_date">登録日: 2026.06.17</div>
+        </div>
+      </a>
+      <button class="btn_like" onclick="removeSingleShop(this);">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="#FF422E"><path d="M12 21.5C11.17 21.5 10.38 21.16 9.82 20.57L2.62 11.43C1.83 10.43 1.58 9.14 1.87 7.9 2.16 6.67 3 5.57 4.17 4.87 5.34 4.17 6.73 3.92 8.07 4.21 9.41 4.5 10.6 5.32 11.38 6.48L12 7.38l.62-.9C13.4 5.32 14.59 4.5 15.93 4.21c1.34-.29 2.73-.04 3.9.66 1.17.7 2.01 1.8 2.3 3.03.29 1.23.04 2.53-.75 3.53L14.18 20.57C13.62 21.16 12.83 21.5 12 21.5z"/></svg>
+      </button>
+    </div>
+    <div class="wish_prod_list"><div class="prod_scroll">
+      <div class="prod_item"><div class="prod_img"><img src="https://placehold.co/100x100/fce4ec/c2185b?text=🧖" alt=""></div><div class="prod_price sale">2,290円</div></div>
+      <div class="prod_item"><div class="prod_img"><img src="https://placehold.co/100x100/fce4ec/c2185b?text=🧖" alt=""></div><div class="prod_price">3,190円</div></div>
+      <div class="prod_item"><div class="prod_img"><img src="https://placehold.co/100x100/fce4ec/c2185b?text=🧖" alt=""></div><div class="prod_price sale">1,890円</div></div>
+    </div></div>
+  </div>
+
+  <div class="wish_list_cont" data-reg="20260616" data-id="shop11">
+    <div class="shop_checkbox_wrap" onclick="toggleShopCheck(this);">
+      <div class="custom_checkbox"></div>
+    </div>
+    <div class="wish_list_top">
+      <a class="shop_info_link" href="#">
+        <div class="shop_thumb"><img src="https://placehold.co/36x36/f3e5f5/7b1fa2?text=L" alt=""></div>
+        <div>
+          <div class="shop_name">Lamelin（ラメリン）公式</div>
+          <div class="shop_reg_date">登録日: 2026.06.16</div>
+        </div>
+      </a>
+      <button class="btn_like" onclick="removeSingleShop(this);">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="#FF422E"><path d="M12 21.5C11.17 21.5 10.38 21.16 9.82 20.57L2.62 11.43C1.83 10.43 1.58 9.14 1.87 7.9 2.16 6.67 3 5.57 4.17 4.87 5.34 4.17 6.73 3.92 8.07 4.21 9.41 4.5 10.6 5.32 11.38 6.48L12 7.38l.62-.9C13.4 5.32 14.59 4.5 15.93 4.21c1.34-.29 2.73-.04 3.9.66 1.17.7 2.01 1.8 2.3 3.03.29 1.23.04 2.53-.75 3.53L14.18 20.57C13.62 21.16 12.83 21.5 12 21.5z"/></svg>
+      </button>
+    </div>
+    <div class="wish_prod_list"><div class="prod_scroll">
+      <div class="prod_item"><div class="prod_img"><img src="https://placehold.co/100x100/f3e5f5/7b1fa2?text=💜" alt=""></div><div class="prod_price sale">1,490円</div></div>
+      <div class="prod_item"><div class="prod_img"><img src="https://placehold.co/100x100/f3e5f5/7b1fa2?text=💜" alt=""></div><div class="prod_price">2,390円</div></div>
+      <div class="prod_item"><div class="prod_img"><img src="https://placehold.co/100x100/f3e5f5/7b1fa2?text=💜" alt=""></div><div class="prod_price sale">1,190円</div></div>
+    </div></div>
+  </div>
+
+  <div class="wish_list_cont" data-reg="20260615" data-id="shop12">
+    <div class="shop_checkbox_wrap" onclick="toggleShopCheck(this);">
+      <div class="custom_checkbox"></div>
+    </div>
+    <div class="wish_list_top">
+      <a class="shop_info_link" href="#">
+        <div class="shop_thumb"><img src="https://placehold.co/36x36/e3f2fd/0277bd?text=D" alt=""></div>
+        <div>
+          <div class="shop_name">【公式】Dr.BBagio</div>
+          <div class="shop_reg_date">登録日: 2026.06.15</div>
+        </div>
+      </a>
+      <button class="btn_like" onclick="removeSingleShop(this);">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="#FF422E"><path d="M12 21.5C11.17 21.5 10.38 21.16 9.82 20.57L2.62 11.43C1.83 10.43 1.58 9.14 1.87 7.9 2.16 6.67 3 5.57 4.17 4.87 5.34 4.17 6.73 3.92 8.07 4.21 9.41 4.5 10.6 5.32 11.38 6.48L12 7.38l.62-.9C13.4 5.32 14.59 4.5 15.93 4.21c1.34-.29 2.73-.04 3.9.66 1.17.7 2.01 1.8 2.3 3.03.29 1.23.04 2.53-.75 3.53L14.18 20.57C13.62 21.16 12.83 21.5 12 21.5z"/></svg>
+      </button>
+    </div>
+    <div class="wish_prod_list"><div class="prod_scroll">
+      <div class="prod_item"><div class="prod_img"><img src="https://placehold.co/100x100/e3f2fd/0277bd?text=🧴" alt=""></div><div class="prod_price sale">3,480円</div></div>
+      <div class="prod_item"><div class="prod_img"><img src="https://placehold.co/100x100/e3f2fd/0277bd?text=🧴" alt=""></div><div class="prod_price">4,980円</div></div>
+      <div class="prod_item"><div class="prod_img"><img src="https://placehold.co/100x100/e3f2fd/0277bd?text=🧴" alt=""></div><div class="prod_price sale">2,680円</div></div>
+    </div></div>
+  </div>
+
+  <div class="wish_list_cont" data-reg="20260614" data-id="shop13">
+    <div class="shop_checkbox_wrap" onclick="toggleShopCheck(this);">
+      <div class="custom_checkbox"></div>
+    </div>
+    <div class="wish_list_top">
+      <a class="shop_info_link" href="#">
+        <div class="shop_thumb"><img src="https://placehold.co/36x36/fafafa/2c2c2c?text=D" alt=""></div>
+        <div>
+          <div class="shop_name">DR.WU【公式】</div>
+          <div class="shop_reg_date">登録日: 2026.06.14</div>
+        </div>
+      </a>
+      <button class="btn_like" onclick="removeSingleShop(this);">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="#FF422E"><path d="M12 21.5C11.17 21.5 10.38 21.16 9.82 20.57L2.62 11.43C1.83 10.43 1.58 9.14 1.87 7.9 2.16 6.67 3 5.57 4.17 4.87 5.34 4.17 6.73 3.92 8.07 4.21 9.41 4.5 10.6 5.32 11.38 6.48L12 7.38l.62-.9C13.4 5.32 14.59 4.5 15.93 4.21c1.34-.29 2.73-.04 3.9.66 1.17.7 2.01 1.8 2.3 3.03.29 1.23.04 2.53-.75 3.53L14.18 20.57C13.62 21.16 12.83 21.5 12 21.5z"/></svg>
+      </button>
+    </div>
+    <div class="wish_prod_list"><div class="prod_scroll">
+      <div class="prod_item"><div class="prod_img"><img src="https://placehold.co/100x100/fafafa/2c2c2c?text=🧬" alt=""></div><div class="prod_price sale">2,980円</div></div>
+      <div class="prod_item"><div class="prod_img"><img src="https://placehold.co/100x100/fafafa/2c2c2c?text=🧬" alt=""></div><div class="prod_price">4,280円</div></div>
+      <div class="prod_item"><div class="prod_img"><img src="https://placehold.co/100x100/fafafa/2c2c2c?text=🧬" alt=""></div><div class="prod_price sale">1,980円</div></div>
+    </div></div>
+  </div>
+
+  <div class="wish_list_cont" data-reg="20260613" data-id="shop14">
+    <div class="shop_checkbox_wrap" onclick="toggleShopCheck(this);">
+      <div class="custom_checkbox"></div>
+    </div>
+    <div class="wish_list_top">
+      <a class="shop_info_link" href="#">
+        <div class="shop_thumb"><img src="https://placehold.co/36x36/fce4ec/ad1457?text=M" alt=""></div>
+        <div>
+          <div class="shop_name">Mary&amp;May(マリーアンドメイ)公式</div>
+          <div class="shop_reg_date">登録日: 2026.06.13</div>
+        </div>
+      </a>
+      <button class="btn_like" onclick="removeSingleShop(this);">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="#FF422E"><path d="M12 21.5C11.17 21.5 10.38 21.16 9.82 20.57L2.62 11.43C1.83 10.43 1.58 9.14 1.87 7.9 2.16 6.67 3 5.57 4.17 4.87 5.34 4.17 6.73 3.92 8.07 4.21 9.41 4.5 10.6 5.32 11.38 6.48L12 7.38l.62-.9C13.4 5.32 14.59 4.5 15.93 4.21c1.34-.29 2.73-.04 3.9.66 1.17.7 2.01 1.8 2.3 3.03.29 1.23.04 2.53-.75 3.53L14.18 20.57C13.62 21.16 12.83 21.5 12 21.5z"/></svg>
+      </button>
+    </div>
+    <div class="wish_prod_list"><div class="prod_scroll">
+      <div class="prod_item"><div class="prod_img"><img src="https://placehold.co/100x100/fce4ec/ad1457?text=🌸" alt=""></div><div class="prod_price sale">1,780円</div></div>
+      <div class="prod_item"><div class="prod_img"><img src="https://placehold.co/100x100/fce4ec/ad1457?text=🌸" alt=""></div><div class="prod_price">2,580円</div></div>
+      <div class="prod_item"><div class="prod_img"><img src="https://placehold.co/100x100/fce4ec/ad1457?text=🌸" alt=""></div><div class="prod_price sale">1,280円</div></div>
+    </div></div>
+  </div>
+
+  <div class="wish_list_cont" data-reg="20260612" data-id="shop15">
+    <div class="shop_checkbox_wrap" onclick="toggleShopCheck(this);">
+      <div class="custom_checkbox"></div>
+    </div>
+    <div class="wish_list_top">
+      <a class="shop_info_link" href="#">
+        <div class="shop_thumb"><img src="https://placehold.co/36x36/e8eaf6/283593?text=S" alt=""></div>
+        <div>
+          <div class="shop_name">Shiny-X 3号店</div>
+          <div class="shop_reg_date">登録日: 2026.06.12</div>
+        </div>
+      </a>
+      <button class="btn_like" onclick="removeSingleShop(this);">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="#FF422E"><path d="M12 21.5C11.17 21.5 10.38 21.16 9.82 20.57L2.62 11.43C1.83 10.43 1.58 9.14 1.87 7.9 2.16 6.67 3 5.57 4.17 4.87 5.34 4.17 6.73 3.92 8.07 4.21 9.41 4.5 10.6 5.32 11.38 6.48L12 7.38l.62-.9C13.4 5.32 14.59 4.5 15.93 4.21c1.34-.29 2.73-.04 3.9.66 1.17.7 2.01 1.8 2.3 3.03.29 1.23.04 2.53-.75 3.53L14.18 20.57C13.62 21.16 12.83 21.5 12 21.5z"/></svg>
+      </button>
+    </div>
+    <div class="wish_prod_list"><div class="prod_scroll">
+      <div class="prod_item"><div class="prod_img"><img src="https://placehold.co/100x100/e8eaf6/283593?text=✨" alt=""></div><div class="prod_price sale">1,290円</div></div>
+      <div class="prod_item"><div class="prod_img"><img src="https://placehold.co/100x100/e8eaf6/283593?text=✨" alt=""></div><div class="prod_price">1,890円</div></div>
+      <div class="prod_item"><div class="prod_img"><img src="https://placehold.co/100x100/e8eaf6/283593?text=✨" alt=""></div><div class="prod_price sale">990円</div></div>
+    </div></div>
+  </div>
+
+  <div class="wish_list_cont" data-reg="20260611" data-id="shop16">
+    <div class="shop_checkbox_wrap" onclick="toggleShopCheck(this);">
+      <div class="custom_checkbox"></div>
+    </div>
+    <div class="wish_list_top">
+      <a class="shop_info_link" href="#">
+        <div class="shop_thumb"><img src="https://placehold.co/36x36/e8f5e9/2e7d32?text=Y" alt=""></div>
+        <div>
+          <div class="shop_name">韓国ドラッグストア yespharm</div>
+          <div class="shop_reg_date">登録日: 2026.06.11</div>
+        </div>
+      </a>
+      <button class="btn_like" onclick="removeSingleShop(this);">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="#FF422E"><path d="M12 21.5C11.17 21.5 10.38 21.16 9.82 20.57L2.62 11.43C1.83 10.43 1.58 9.14 1.87 7.9 2.16 6.67 3 5.57 4.17 4.87 5.34 4.17 6.73 3.92 8.07 4.21 9.41 4.5 10.6 5.32 11.38 6.48L12 7.38l.62-.9C13.4 5.32 14.59 4.5 15.93 4.21c1.34-.29 2.73-.04 3.9.66 1.17.7 2.01 1.8 2.3 3.03.29 1.23.04 2.53-.75 3.53L14.18 20.57C13.62 21.16 12.83 21.5 12 21.5z"/></svg>
+      </button>
+    </div>
+    <div class="wish_prod_list"><div class="prod_scroll">
+      <div class="prod_item"><div class="prod_img"><img src="https://placehold.co/100x100/e8f5e9/2e7d32?text=💊" alt=""></div><div class="prod_price sale">890円</div></div>
+      <div class="prod_item"><div class="prod_img"><img src="https://placehold.co/100x100/e8f5e9/2e7d32?text=💊" alt=""></div><div class="prod_price">1,490円</div></div>
+      <div class="prod_item"><div class="prod_img"><img src="https://placehold.co/100x100/e8f5e9/2e7d32?text=💊" alt=""></div><div class="prod_price sale">690円</div></div>
+    </div></div>
+  </div>
+
+  <div class="wish_list_cont" data-reg="20260610" data-id="shop17">
+    <div class="shop_checkbox_wrap" onclick="toggleShopCheck(this);">
+      <div class="custom_checkbox"></div>
+    </div>
+    <div class="wish_list_top">
+      <a class="shop_info_link" href="#">
+        <div class="shop_thumb"><img src="https://placehold.co/36x36/fff8e1/6d4c41?text=B" alt=""></div>
+        <div>
+          <div class="shop_name">B.ROCHE ビロチェ 公式</div>
+          <div class="shop_reg_date">登録日: 2026.06.10</div>
+        </div>
+      </a>
+      <button class="btn_like" onclick="removeSingleShop(this);">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="#FF422E"><path d="M12 21.5C11.17 21.5 10.38 21.16 9.82 20.57L2.62 11.43C1.83 10.43 1.58 9.14 1.87 7.9 2.16 6.67 3 5.57 4.17 4.87 5.34 4.17 6.73 3.92 8.07 4.21 9.41 4.5 10.6 5.32 11.38 6.48L12 7.38l.62-.9C13.4 5.32 14.59 4.5 15.93 4.21c1.34-.29 2.73-.04 3.9.66 1.17.7 2.01 1.8 2.3 3.03.29 1.23.04 2.53-.75 3.53L14.18 20.57C13.62 21.16 12.83 21.5 12 21.5z"/></svg>
+      </button>
+    </div>
+    <div class="wish_prod_list"><div class="prod_scroll">
+      <div class="prod_item"><div class="prod_img"><img src="https://placehold.co/100x100/fff8e1/6d4c41?text=🌿" alt=""></div><div class="prod_price sale">2,480円</div></div>
+      <div class="prod_item"><div class="prod_img"><img src="https://placehold.co/100x100/fff8e1/6d4c41?text=🌿" alt=""></div><div class="prod_price">3,580円</div></div>
+      <div class="prod_item"><div class="prod_img"><img src="https://placehold.co/100x100/fff8e1/6d4c41?text=🌿" alt=""></div><div class="prod_price sale">1,880円</div></div>
+    </div></div>
+  </div>
+
+</div>
+
+<!-- Bottom action bar -->
+<div class="wish_shop_action_bar" id="action_bar">
+  <button type="button" id="btn_edit_cancel" onclick="exitEditMode();">キャンセル</button>
+  <button type="button" class="btn_bulk_remove" id="btn_bulk_remove" disabled onclick="openConfirm();">
+    選択解除 (<span id="span_btn_count">0</span>件)
+  </button>
+</div>
+
+<!-- Sort bottom sheet -->
+<div class="sort_sheet_bg" id="sort_sheet_bg" onclick="closeSortSheet();"></div>
+<div class="sort_sheet" id="sort_sheet">
+  <div class="sort_sheet_header">
+    <strong>並び替え</strong>
+    <button type="button" class="sort_close_btn" onclick="closeSortSheet();">
+      <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+        <path d="M4 4l12 12M16 4L4 16" stroke="#3d3f45" stroke-width="1.6" stroke-linecap="round"/>
+      </svg>
+    </button>
+  </div>
+  <ul class="sort_option_list" id="sort_option_list">
+    <li id="opt_newest">
+      <label onclick="selectSort('newest', '最新登録順');">
+        <span>最新登録順</span>
+        <svg class="sort_check_icon" width="18" height="18" viewBox="0 0 18 18" fill="none">
+          <path d="M2.5 9.5l4.5 4.5 8.5-9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </label>
+    </li>
+    <li id="opt_oldest">
+      <label onclick="selectSort('oldest', '過去登録順');">
+        <span>過去登録順</span>
+        <svg class="sort_check_icon" width="18" height="18" viewBox="0 0 18 18" fill="none">
+          <path d="M2.5 9.5l4.5 4.5 8.5-9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </label>
+    </li>
+    <li id="opt_name">
+      <label onclick="selectSort('name', '名前順（A-Z）');">
+        <span>名前順（A-Z）</span>
+        <svg class="sort_check_icon" width="18" height="18" viewBox="0 0 18 18" fill="none">
+          <path d="M2.5 9.5l4.5 4.5 8.5-9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </label>
+    </li>
+  </ul>
+</div>
+
+<!-- Confirm dialog -->
+<div class="confirm_bg" id="confirm_bg">
+  <div class="confirm_box">
+    <div class="confirm_body">
+      <strong>お気に入りを解除しますか？</strong>
+      <p id="confirm_msg"></p>
+    </div>
+    <div class="confirm_footer">
+      <button type="button" class="btn_cancel" onclick="closeConfirm();">キャンセル</button>
+      <button type="button" class="btn_confirm" onclick="executeBulkRemove();">解除する</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  var _sortOrder = null;
+  var _isEditMode = false;
+  var _pendingRemoveCard = null; // 단건 해제 대상
+
+  /* ── 초기화 ── */
+  function init() {
+    updateTotalCount();
+    selectSort('newest', '最新登録順');
+  }
+
+  function updateTotalCount() {
+    var count = document.querySelectorAll('#div_shop_wishlist .wish_list_cont').length;
+    document.getElementById('span_shop_total_count').textContent = count;
+    document.getElementById('span_total_count').textContent = count;
+  }
+
+  /* ── 名前順 정렬 헬퍼 ── */
+  function getNameSortCategory(ch) {
+    var code = ch.charCodeAt(0);
+    // 1. 영문 A-Z (대소문자 무관)
+    if ((code >= 65 && code <= 90) || (code >= 97 && code <= 122)) return 0;
+    // 2. 일본어: 히라가나 / 가타카나 / 한자
+    if ((code >= 0x3040 && code <= 0x309F) ||   // 히라가나
+        (code >= 0x30A0 && code <= 0x30FF) ||   // 가타카나
+        (code >= 0x4E00 && code <= 0x9FFF) ||   // CJK 통합 한자
+        (code >= 0x3400 && code <= 0x4DBF) ||   // CJK 확장 A
+        (code >= 0xF900 && code <= 0xFAFF)) {   // CJK 호환 한자
+      return 1;
+    }
+    // 3. 숫자 0-9
+    if (code >= 48 && code <= 57) return 2;
+    // 4. 특수문자
+    return 3;
+  }
+
+  function compareByName(a, b) {
+    var nameA = a.querySelector('.shop_name').textContent.trim();
+    var nameB = b.querySelector('.shop_name').textContent.trim();
+    var catA = getNameSortCategory(nameA.charAt(0));
+    var catB = getNameSortCategory(nameB.charAt(0));
+    if (catA !== catB) return catA - catB;
+    return nameA.localeCompare(nameB, 'ja', { sensitivity: 'base' });
+  }
+
+  /* ── 정렬 ── */
+  function openSortSheet() {
+    document.getElementById('sort_sheet_bg').classList.add('show');
+    document.getElementById('sort_sheet').classList.add('show');
+    document.getElementById('btn_sort_trigger').classList.add('open');
+  }
+  function closeSortSheet() {
+    document.getElementById('sort_sheet_bg').classList.remove('show');
+    document.getElementById('sort_sheet').classList.remove('show');
+    document.getElementById('btn_sort_trigger').classList.remove('open');
+  }
+  function selectSort(order, label) {
+    if (_sortOrder !== order) {
+      _sortOrder = order;
+      var container = document.getElementById('div_shop_wishlist');
+      var items = Array.from(container.querySelectorAll('.wish_list_cont'));
+      items.sort(function(a, b) {
+        if (order === 'name') return compareByName(a, b);
+        var da = parseInt(a.getAttribute('data-reg'), 10);
+        var db = parseInt(b.getAttribute('data-reg'), 10);
+        return order === 'newest' ? db - da : da - db;
+      });
+      items.forEach(function(item) { container.appendChild(item); });
+      document.getElementById('span_sort_label').textContent = label;
+    }
+    document.querySelectorAll('#sort_option_list li').forEach(function(li) { li.classList.remove('active'); });
+    document.getElementById('opt_' + order).classList.add('active');
+    closeSortSheet();
+  }
+
+  /* ── 편집 모드 ── */
+  function enterEditMode() {
+    _isEditMode = true;
+    document.getElementById('filter_bar').style.display = 'none';
+    document.getElementById('edit_bar').classList.add('show');
+    document.getElementById('action_bar').classList.add('show');
+    document.querySelectorAll('.wish_list_cont').forEach(function(card) {
+      card.classList.add('edit-mode');
+    });
+    resetSelection();
+  }
+
+  function exitEditMode() {
+    _isEditMode = false;
+    document.getElementById('filter_bar').style.display = '';
+    document.getElementById('edit_bar').classList.remove('show');
+    document.getElementById('action_bar').classList.remove('show');
+    document.querySelectorAll('.wish_list_cont').forEach(function(card) {
+      card.classList.remove('edit-mode');
+    });
+    resetSelection();
+  }
+
+  function resetSelection() {
+    document.querySelectorAll('.shop_checkbox_wrap .custom_checkbox').forEach(function(chk) {
+      chk.classList.remove('checked');
+    });
+    document.getElementById('chk_all').classList.remove('checked');
+    updateSelectionUI();
+  }
+
+  /* ── 체크박스 ── */
+  function toggleShopCheck(wrap) {
+    var chk = wrap.querySelector('.custom_checkbox');
+    chk.classList.toggle('checked');
+    syncAllCheckbox();
+    updateSelectionUI();
+  }
+
+  function toggleSelectAll() {
+    var allChk = document.getElementById('chk_all');
+    var isAllChecked = allChk.classList.contains('checked');
+    allChk.classList.toggle('checked');
+    document.querySelectorAll('.shop_checkbox_wrap .custom_checkbox').forEach(function(chk) {
+      isAllChecked ? chk.classList.remove('checked') : chk.classList.add('checked');
+    });
+    updateSelectionUI();
+  }
+
+  function syncAllCheckbox() {
+    var all = document.querySelectorAll('.shop_checkbox_wrap .custom_checkbox');
+    var checked = document.querySelectorAll('.shop_checkbox_wrap .custom_checkbox.checked');
+    var allChk = document.getElementById('chk_all');
+    if (checked.length === all.length && all.length > 0) {
+      allChk.classList.add('checked');
+    } else {
+      allChk.classList.remove('checked');
+    }
+  }
+
+  function updateSelectionUI() {
+    var count = document.querySelectorAll('.shop_checkbox_wrap .custom_checkbox.checked').length;
+    document.getElementById('span_selected_count').textContent = count;
+    document.getElementById('span_btn_count').textContent = count;
+    var btn = document.getElementById('btn_bulk_remove');
+    btn.disabled = count === 0;
+  }
+
+  /* ── 단건 해제 (하트 버튼) ── */
+  function removeSingleShop(btn) {
+    _pendingRemoveCard = btn.closest('.wish_list_cont');
+    var name = _pendingRemoveCard.querySelector('.shop_name').textContent;
+    document.getElementById('confirm_msg').textContent = '「' + name + '」のお気に入りを解除します。';
+    openConfirm();
+  }
+
+  /* ── 일괄 해제 ── */
+  function openConfirm() {
+    if (!_pendingRemoveCard) {
+      var count = document.querySelectorAll('.shop_checkbox_wrap .custom_checkbox.checked').length;
+      document.getElementById('confirm_msg').textContent = '選択した ' + count + '件のショップを解除します。';
+    }
+    document.getElementById('confirm_bg').classList.add('show');
+  }
+  function closeConfirm() {
+    document.getElementById('confirm_bg').classList.remove('show');
+    _pendingRemoveCard = null;
+  }
+
+  function executeBulkRemove() {
+    closeConfirm();
+
+    var targets;
+    if (_pendingRemoveCard) {
+      targets = [_pendingRemoveCard];
+      _pendingRemoveCard = null;
+    } else {
+      targets = Array.from(document.querySelectorAll('.shop_checkbox_wrap .custom_checkbox.checked'))
+        .map(function(chk) { return chk.closest('.wish_list_cont'); });
+    }
+
+    targets.forEach(function(card) {
+      card.classList.add('removing');
+      setTimeout(function() { card.classList.add('removed'); }, 10);
+      setTimeout(function() {
+        card.parentNode && card.parentNode.removeChild(card);
+        updateTotalCount();
+        if (_isEditMode) {
+          updateSelectionUI();
+          syncAllCheckbox();
+        }
+      }, 320);
+    });
+
+    if (_isEditMode) exitEditMode();
+  }
+
+  init();
+</script>
+</body>
+</html>
